@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin.html
+Sitemap: https://tristone-building-maintenance.sajinrajdme.chatgpt.site/sitemap.xml
