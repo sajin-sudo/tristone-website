@@ -1,3 +1,4 @@
+import {build} from 'esbuild';
 
 import fs from 'node:fs';import path from 'node:path';import {renderPage,routes} from '../server/render.mjs';
 const out='dist';const content=JSON.parse(fs.readFileSync('content/site.json','utf8'));const hosting={project_id:'appgprj_6ac3b66c2ee08191954203362b8fc1bd',d1:'DB',r2:'BUCKET'};
@@ -12,5 +13,5 @@ for(const file of [...routes,'site.js','admin.js','admin.html','styles.css','log
 // Admin resources are embedded behind Worker authorization, never public static files.
 fs.unlinkSync(out+'/admin.html');fs.unlinkSync(out+'/admin.js');
 fs.mkdirSync(out+'/server',{recursive:true});fs.writeFileSync(out+'/server/assets.mjs','export const assets='+JSON.stringify(assets)+';');fs.writeFileSync(out+'/server/defaults.mjs','export const defaults='+JSON.stringify(content)+';');
-for(const file of ['validation.mjs','cms.mjs','render.mjs','content-schema.mjs','sections.mjs'])fs.copyFileSync('server/'+file,out+'/server/'+file);fs.copyFileSync('server/worker.mjs',out+'/server/index.js');
+for(const file of ['validation.mjs','cms.mjs','render.mjs','content-schema.mjs','sections.mjs','security.mjs','uploads.mjs'])fs.copyFileSync('server/'+file,out+'/server/'+file);fs.copyFileSync('server/worker.mjs',out+'/server/worker.mjs');await build({entryPoints:[out+'/server/worker.mjs'],outfile:out+'/server/index.js',bundle:true,format:'esm',platform:'browser',target:'es2022',inject:['scripts/worker-buffer.mjs'],minify:false});
 fs.writeFileSync('.openai/hosting.json',JSON.stringify(hosting,null,2));fs.mkdirSync(out+'/.openai',{recursive:true});fs.copyFileSync('.openai/hosting.json',out+'/.openai/hosting.json');fs.cpSync('drizzle',out+'/.openai/drizzle',{recursive:true});console.log('Built five main pages, separate forms, privacy/portfolio and persistent admin CMS.');

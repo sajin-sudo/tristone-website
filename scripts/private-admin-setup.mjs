@@ -1,0 +1,6 @@
+import fs from 'node:fs';import {randomBytes,scryptSync} from 'node:crypto';
+const password=randomBytes(24).toString('base64url'),salt=randomBytes(16),hash=scryptSync(password,salt,64,{N:32768,r:8,p:1,maxmem:64*1024*1024});
+const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';let bits='';for(const n of randomBytes(20))bits+=n.toString(2).padStart(8,'0');let secret='';for(const part of bits.match(/.{5}/g))secret+=alphabet[parseInt(part,2)];
+const values={OWNER_PASSWORD:password,ADMIN_PASSWORD_HASH:'scrypt$'+salt.toString('hex')+'$'+hash.toString('hex'),ADMIN_TOTP_SECRET:secret,HOSTINGER_BRIDGE_SECRET:randomBytes(32).toString('hex'),GOOGLE_BRIDGE_SECRET:randomBytes(32).toString('hex')};
+if(fs.existsSync('.private/admin-setup.json'))throw new Error('Private setup already exists. Refusing to overwrite credentials.');
+fs.mkdirSync('.private',{recursive:true});fs.writeFileSync('.private/admin-setup.json',JSON.stringify(values,null,2),{mode:0o600});console.log('Generated and saved private setup to ignored .private/admin-setup.json. No values are printed. Keep the owner password in a password manager; configure runtime values privately and enrol the authenticator. Never upload this file to GitHub or the website.');

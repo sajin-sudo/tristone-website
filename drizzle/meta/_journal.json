@@ -8,6 +8,13 @@
       "when": 1791222180512,
       "tag": "0000_abandoned_beyonder",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1791283587442,
+      "tag": "0001_warm_spectrum",
+      "breakpoints": true
     }
   ]
 }

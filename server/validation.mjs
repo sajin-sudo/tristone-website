@@ -1,3 +1,4 @@
+import {submissionFiles} from './uploads.mjs';
 export const services = ['Building maintenance','Electromechanical installation & maintenance','Manpower supply','Other / discuss requirements'];
 export class InputError extends Error { constructor(message,status=400){super(message);this.status=status;} }
 export function validate(data,kind,serviceOptions=services,formConfig=null){
@@ -16,19 +17,4 @@ export function validate(data,kind,serviceOptions=services,formConfig=null){
   if(data.website)throw new InputError('Unable to submit this request.');
   return clean;
 }
-export async function validateFiles(files,kind){
-  if(kind==='application'&&files.length!==1)throw new InputError('Please upload one CV (PDF, DOC or DOCX).');
-  if(files.length>3)throw new InputError('Please upload no more than three files.');
-  let total=0;const result=[];
-  for(const file of files){
-    total+=file.size;if(!file.size||file.size>5*1024*1024||total>10*1024*1024)throw new InputError('Files must be up to 5 MB each and 10 MB in total.');
-    const ext=file.name.split('.').pop().toLowerCase();const allowed=kind==='application'?['pdf','doc','docx']:['pdf','doc','docx','jpg','jpeg','png'];
-    if(!allowed.includes(ext))throw new InputError('Unsupported file. Use PDF, DOC, DOCX'+(kind==='inquiry'?', JPG or PNG.':'.'));
-    const bytes=new Uint8Array(await file.arrayBuffer());const starts=(a)=>a.every((b,i)=>bytes[i]===b);
-    const signatures={pdf:[37,80,68,70,45],doc:[208,207,17,224,161,177,26,225],docx:[80,75,3,4],jpg:[255,216,255],jpeg:[255,216,255],png:[137,80,78,71,13,10,26,10]};
-    if(!starts(signatures[ext]))throw new InputError('A file does not match its format. Please upload a valid document or photo.');
-    const mime={pdf:'application/pdf',doc:'application/msword',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png'}[ext];
-    let raw='';for(let i=0;i<bytes.length;i+=8192)raw+=String.fromCharCode(...bytes.subarray(i,i+8192));
-    result.push({name:file.name.replace(/[^\w. -]/g,'_').slice(0,120),mime,data:btoa(raw)});
-  }return result;
-}
+export const validateFiles=submissionFiles;
