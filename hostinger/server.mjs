@@ -1,128 +1,42 @@
 import http from 'node:http';
-import { handle } from '../dist/server/index.js';
-
-export async function respond(req, res, env = process.env) {
-  try {
-    const headers = new Headers();
-
-    for (const [key, value] of Object.entries(req.headers)) {
-      const name = key.toLowerCase();
-
-      if (
-        name.startsWith('oai-') ||
-        name.startsWith('x-tristone-') ||
-        value === undefined
-      ) {
-        continue;
-      }
-
-      headers.set(
-        key,
-        Array.isArray(value) ? value.join(', ') : value
-      );
+import {randomBytes,scryptSync,timingSafeEqual,createHmac} from 'node:crypto';
+import {digest,hmac,approvedOrigin,readBounded,SecurityError} from '../server/security.mjs';
+const UPSTREAM='https://tristone-building-maintenance.sajinrajdme.chatgpt.site';
+const policy={'Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin'};
+const loginHtml='<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>TriStone owner sign-in</title><link rel="stylesheet" href="/styles.css"><main class="admin-main"><h1>Owner sign-in</h1><p>This dashboard is restricted to the website owner.</p><form action="/auth/login" method="post"><label>Password<input name="password" type="password" autocomplete="current-password" required maxlength="200"></label><label>Authenticator code<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label><button class="button primary">Sign in</button></form></main></html>';
+const failure=(status=401)=>new Response('Sign-in could not be completed. Check your details or try later.',{status,headers:policy});
+function same(a,b){const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y);}
+export function checkPassword(value,encoded){try{const [kind,salt,hash]=encoded.split('$');if(kind!=='scrypt'||!/^[a-f0-9]{32}$/.test(salt)||!/^[a-f0-9]{128}$/.test(hash)||value.length>200)return false;return same(scryptSync(value,Buffer.from(salt,'hex'),64,{N:32768,r:8,p:1,maxmem:64*1024*1024}).toString('hex'),hash);}catch{return false;}}
+function base32(value){if(!/^[A-Z2-7]{32,64}$/.test(value||''))throw new Error('Authenticator not configured');let bits='';for(const ch of value)bits+='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.indexOf(ch).toString(2).padStart(5,'0');return Buffer.from(bits.match(/.{8}/g).map(b=>parseInt(b,2)));}
+export function totp(secret,step){const bytes=Buffer.alloc(8);bytes.writeBigUInt64BE(BigInt(step));const hash=createHmac('sha1',base32(secret)).update(bytes).digest(),offset=hash[hash.length-1]&15;return ((hash.readUInt32BE(offset)&0x7fffffff)%1000000).toString().padStart(6,'0');}
+export function checkTotp(secret,code,now=Date.now()){if(!/^\d{6}$/.test(code||''))return null;const step=Math.floor(now/30000);for(const candidate of [step,step-1,step+1])if(same(totp(secret,candidate),code))return candidate;return null;}
+function cookie(request){const match=(request.headers.get('cookie')||'').match(/(?:^|;\s*)__Host-tristone_session=([a-f0-9]{64})(?:;|$)/);return match?.[1]||'';}
+function setCookie(token,age=900){return '__Host-tristone_session='+token+'; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age='+age;}
+export async function gatewayHandler(request,env,fetcher=fetch,client='unknown'){
+try{const site=env.PUBLIC_ORIGIN;if(!approvedOrigin(site,env)||new URL(request.url).origin!==site||!env.SITES_SERVICE_TOKEN||!env.HOSTINGER_BRIDGE_SECRET||env.HOSTINGER_BRIDGE_SECRET.length<32)return failure(503);
+const url=new URL(request.url),session=cookie(request);
+   if (
+  env.DEPLOYMENT_STAGE === 'test' &&
+  site === 'https://palevioletred-tarsier-728112.hostingersite.com' &&
+  url.pathname === '/' &&
+  ['GET', 'HEAD'].includes(request.method)
+) {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      ...policy,
+      Location: '/auth/login',
+      'X-Robots-Tag': 'noindex, nofollow'
     }
-
-    const origin =
-      env.PUBLIC_ORIGIN ||
-      `https://${headers.get('host') || 'localhost'}`;
-
-    const url = new URL(req.url, origin);
-
-    if (url.origin !== new URL(origin).origin) {
-      res.writeHead(400);
-      res.end('Invalid request');
-      return;
-    }
-
-    // Owner editing remains closed on this older hosting adapter.
-    if (
-      url.pathname.startsWith('/api/admin/') ||
-      [
-        '/admin',
-        '/admin.html',
-        '/admin.js',
-        '/signin-with-chatgpt'
-      ].includes(url.pathname)
-    ) {
-      res.writeHead(503, {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'Cache-Control': 'no-store'
-      });
-
-      res.end(
-        'The website editor has not been connected on this hosting provider.'
-      );
-      return;
-    }
-
-    const chunks = [];
-    let size = 0;
-
-    for await (const chunk of req) {
-      size += chunk.length;
-
-      if (size > 11 * 1024 * 1024) {
-        res.writeHead(413);
-        res.end('Upload too large');
-        return;
-      }
-
-      chunks.push(chunk);
-    }
-
-    const request = new Request(url, {
-      method: req.method,
-      headers,
-      ...(!['GET', 'HEAD'].includes(req.method)
-        ? { body: Buffer.concat(chunks) }
-        : {})
-    });
-
-    const result = await handle(request, env);
-
-    res.writeHead(
-      result.status,
-      Object.fromEntries(result.headers)
-    );
-
-    res.end(Buffer.from(await result.arrayBuffer()));
-  } catch {
-    console.error('Website request failed.');
-
-    if (!res.headersSent) {
-      res.writeHead(500, {
-        'Content-Type': 'text/plain; charset=utf-8'
-      });
-    }
-
-    res.end('Website temporarily unavailable');
-  }
-}
-
-export function start() {
-  const port = Number(process.env.PORT || 3000);
-
-  if (!Number.isInteger(port) || port < 0 || port > 65535) {
-    throw new Error('Invalid PORT');
-  }
-
-  const server = http.createServer((req, res) => {
-    void respond(req, res);
   });
-
-  server.on('error', error => {
-    console.error(
-      'TriStone server startup failed:',
-      error.code || 'UNKNOWN'
-    );
-    process.exitCode = 1;
-  });
-
-  server.listen(port, '0.0.0.0', () => {
-    console.log(
-      `TriStone listening on port ${server.address().port}`
-    );
-  });
-
-  return server;
-}
+} 
+async function proxy(path,method=request.method,body=null,token=session){const bytes=body===null?await readBounded(request,11*1024*1024):new TextEncoder().encode(body);const timestamp=Date.now(),nonce=crypto.randomUUID(),origin=site;const canonical=JSON.stringify({timestamp,nonce,client,session:token,method,path,origin,body:await digest(bytes)});const headers=new Headers({'Origin':origin,'OAI-Sites-Authorization':'Bearer '+env.SITES_SERVICE_TOKEN,'x-tristone-proof':JSON.stringify({timestamp,nonce,client,session:token,signature:await hmac(canonical,env.HOSTINGER_BRIDGE_SECRET)})});if(body!==null)headers.set('Content-Type','application/json');else if(request.headers.get('content-type'))headers.set('Content-Type',request.headers.get('content-type'));const response=await fetcher(UPSTREAM+path,{method,headers,...(!['GET','HEAD'].includes(method)?{body:bytes}:{}),redirect:'manual',signal:AbortSignal.timeout(35000)});return response;}
+if(url.pathname==='/auth/login'){if(request.method==='GET')return new Response(loginHtml,{headers:{...policy,'Content-Type':'text/html; charset=utf-8'}});if(request.method!=='POST'||request.headers.get('origin')!==site||!(request.headers.get('content-type')||'').startsWith('application/x-www-form-urlencoded'))return failure(403);const limited=await proxy('/_gateway/rate-login','POST','{}','');if(!limited.ok)return failure(limited.status);const data=new URLSearchParams(new TextDecoder().decode(await readBounded(request,8192)));let step;try{if(!checkPassword(data.get('password')||'',env.ADMIN_PASSWORD_HASH||''))return failure();step=checkTotp(env.ADMIN_TOTP_SECRET,data.get('code'));}catch{return failure(503);}if(step===null)return failure();const token=randomBytes(32).toString('hex');const saved=await proxy('/_gateway/session','POST',JSON.stringify({token,step}),'');if(!saved.ok)return failure(saved.status);return new Response(null,{status:303,headers:{...policy,Location:'/admin.html','Set-Cookie':setCookie(token)}});}
+if(['/auth/logout','/signout-with-chatgpt'].includes(url.pathname)){if(request.method==='GET')return new Response('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="robots" content="noindex"><title>Sign out</title><form method="post" action="/auth/logout"><button>Sign out of the owner dashboard</button></form></html>',{headers:{...policy,'Content-Type':'text/html'}});if(request.method!=='POST'||request.headers.get('origin')!==site)return failure(403);const revoked=await proxy('/_gateway/logout','POST','{}');if(!revoked.ok)return failure(503);return new Response(null,{status:303,headers:{...policy,Location:'/auth/login','Set-Cookie':setCookie('',0)}});}
+if(url.pathname.startsWith('/_gateway/')||url.pathname.startsWith('/signin-with-chatgpt')||url.pathname==='/callback')return new Response('Not found',{status:404,headers:policy});
+if((url.pathname.startsWith('/admin')||url.pathname.startsWith('/api/admin/'))&&!session)return url.pathname.startsWith('/api/')?failure():new Response(null,{status:303,headers:{...policy,Location:'/auth/login'}});
+if(!['GET','HEAD'].includes(request.method)&&request.headers.get('origin')!==site)return failure(403);
+const response=await proxy(url.pathname+url.search);if(response.status>=300&&response.status<400){if(url.pathname.startsWith('/admin'))return new Response(null,{status:303,headers:{...policy,Location:'/auth/login','Set-Cookie':setCookie('',0)}});return failure(503);}const headers=new Headers(response.headers);for(const name of ['content-encoding','content-length','transfer-encoding','connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','upgrade'])headers.delete(name);headers.delete('set-cookie');headers.delete('access-control-allow-credentials');if(env.DEPLOYMENT_STAGE==='test')headers.set('X-Robots-Tag','noindex, nofollow');return new Response(response.body,{status:response.status,headers});
+}catch(error){return failure(error instanceof SecurityError?error.status:503);}}
+export function start(env=process.env){if(!env.PUBLIC_ORIGIN||!approvedOrigin(env.PUBLIC_ORIGIN,env))throw new Error('Set the approved HTTPS PUBLIC_ORIGIN before starting.');const server=http.createServer(async(req,res)=>{try{const host=new URL(env.PUBLIC_ORIGIN).host;if(req.headers.host!==host){res.writeHead(400);return res.end('Invalid host');}let size=0;const chunks=[];for await(const chunk of req){size+=chunk.length;if(size>11*1024*1024){res.writeHead(413);return res.end('Request too large');}chunks.push(chunk);}const headers=new Headers();for(const[k,v]of Object.entries(req.headers))if(typeof v==='string'&&!k.toLowerCase().startsWith('oai-')&&!k.toLowerCase().startsWith('x-tristone-'))headers.set(k,v);const request=new Request(env.PUBLIC_ORIGIN+req.url,{method:req.method,headers,...(!['GET','HEAD'].includes(req.method)?{body:Buffer.concat(chunks)}:{})});const response=await gatewayHandler(request,env,fetch,req.socket.remoteAddress||'unknown');res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));}catch{res.writeHead(503);res.end('Service temporarily unavailable');}});server.listen(Number(env.PORT)||3000,'0.0.0.0');return server;}
+if(process.argv[1]&&new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/i,'$1').replaceAll('/','\\')===process.argv[1])start();

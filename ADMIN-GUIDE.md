@@ -1,21 +1,30 @@
-# Managing the TriStone website
+# Editing TriStone without code
 
-Open the website address followed by /admin.html. Sign in using the ChatGPT account that owns this Site. Other accounts cannot access the editor or save content. There is no public navigation link to it.
+The secured local project includes an owner dashboard. The older adapter currently deployed on Hostinger blocks admin access; these instructions become live only after the secure gateway, database and image storage are configured and tested together.
 
-Choose a section in the left menu, make changes, then select Save changes. Saves immediately update the website. If another tab saved first, reload before trying again.
+## Signing in after activation
 
-- Pages: change headlines, introductions, photos and SEO titles/descriptions.
-- Service list: add services, edit detailed descriptions and short Home summaries. The service request dropdown updates automatically.
-- Job vacancies: add a vacancy with location, employment type and requirements. Keep it Draft while preparing it; select Published to display it. Closed and expired vacancies disappear.
-- Projects, testimonials and certifications: add genuine records and photographs, then publish. Empty collections remain hidden.
-- Forms: change wording, labels and optional fields; add extra fields. Name, phone, email, candidate CV and consent remain required for reliable submissions.
-- Contact & company: change email, telephone, coverage, address and working hours. Blank phone values hide the number. Hours appear on Contact.
-- WhatsApp: enter country code and number separately, using digits only. Set different default messages for customers and candidates. Buttons appear only when the full number is valid.
-- Social links: paste full HTTPS links. Empty links stay hidden.
-- Banner, announcements, buttons, footer, policies and trust points have separate controls.
+1. Open https://tristone.ae/auth/login.
+2. Enter your privately configured owner password and the six-digit code from your authenticator.
+3. The dashboard opens at /admin.html. Visitors cannot access the editor or its APIs without a valid owner session.
+4. Sessions expire after 15 minutes. Use Sign out when finished.
 
-Upload JPG or PNG images up to 5 MB. Describe each image for accessibility and use only photographs you have permission to publish.
+Do not post your password, authenticator seed, session cookie or bridge secrets in chat, GitHub or browser code. Initial credentials are configured privately using the setup procedure in SECURITY-MANUAL-SETUP.md. There is no shared default password.
 
-The dashboard saves website content and images to the site's private database and media storage. It does not contain visitor records or CVs. Customer and candidate submissions use separate Google storage and are not operational until the Google connection and spam protection are authorised and tested.
+## Changing the website
 
-The site currently retains owner-only access. Connecting tristone.ae and making the customer pages public are separate launch steps; the editor remains owner-protected.
+Choose a section in the menu, edit its fields, then click Save changes. Successful saves update the content database and rendered pages. If another tab saved first, reload before retrying.
+
+- Pages: headings, descriptions, photographs and SEO titles/descriptions.
+- Services: add/edit services and their descriptions. The service-request dropdown updates automatically.
+- Vacancies: add a position and requirements; choose Draft, Published or Closed. Expired vacancies are hidden.
+- Projects, testimonials and certifications: publish genuine entries; empty collections stay hidden.
+- Company/contact: email, phone, coverage, address and working hours.
+- WhatsApp: country code, phone and separate customer/candidate messages; blank settings hide buttons.
+- Social links: full HTTPS addresses; empty settings hide icons.
+- Forms: supported wording, labels and optional fields. Essential identity/consent/security requirements remain enforced.
+- Banners, announcements, buttons, footer, privacy and terms have controls.
+
+Upload JPG/PNG photos with appropriate permissions, up to 5 MiB and four megapixels. Add descriptive alternative text. Candidate documents and customer submissions are not public dashboard media; they use separate private Google destinations once connected.
+
+Website editing does not require Google submission storage to be enabled. It does require working owner authentication, D1 content/security tables, R2 photo storage and the private server-to-server connection. See SECURITY-MANUAL-SETUP.md. Do not unblock the older adapter's admin routes without these protections.

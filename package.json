@@ -1,15 +1,26 @@
 {
-"name": "tristone-website",
-"private": true,
-"type": "module",
-"scripts": {
-"build": "node scripts/build.mjs",
-"start": "node hostinger/start.mjs",
-"test": "node --test --test-isolation=none tests/*.test.mjs",
-"db:generate": "drizzle-kit generate"
-},
-"devDependencies": {
-"drizzle-kit": "0.31.10",
-"drizzle-orm": "0.45.2"
-}
+  "name": "tristone-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test --test-isolation=none tests/*.test.mjs",
+    "db:generate": "drizzle-kit generate",
+    "start": "node hostinger/start.mjs",
+    "secrets:check": "node scripts/check-secrets.mjs"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.10",
+    "drizzle-orm": "0.45.2",
+    "esbuild": "^0.28.2"
+  },
+  "dependencies": {
+    "buffer": "^6.0.3",
+    "jpeg-js": "^0.4.4",
+    "pdf-lib": "^1.17.1",
+    "upng-js": "^2.1.0"
+  },
+  "overrides": {
+    "esbuild": "^0.28.2"
+  }
 }

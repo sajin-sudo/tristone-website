@@ -1,0 +1,14 @@
+node_modules/
+.tools/
+.preview/
+qa/
+.env
+.env.*
+!.env.example
+.private/
+*.pem
+*.key
+*credentials*.json
+*service-account*.json
+*.zip
+*.tar.gz
